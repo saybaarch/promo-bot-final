@@ -83,19 +83,32 @@ function writeJson(filePath, value) {
 function loadConfig() {
   SETTINGS = readJson(SETTINGS_PATH, {
     prefix: "!",
-    brand: { name: "Sayba Arc", website: "https://sayba.web.id" },
-    owner: { name: "Sayba Arc", number: "6287721916495" },
-    paths: { welcomeImage: "./media/welcome.jpg" },
-    autoReply: { cooldownMs: 86400000 },
+    brand: {
+      name: "Sayba Arc",
+      website: "https://sayba.web.id"
+    },
+    owner: {
+      name: "Sayba Arc",
+      number: "6287721916495"
+    },
+    paths: {
+      welcomeImage: "./media/welcome.jpg"
+    },
+    autoReply: {
+      cooldownMs: 86400000
+    },
     commandCooldownMs: 5000,
-    broadcast: { minDelayMs: 15000, maxDelayMs: 30000 }
+    broadcast: {
+      minDelayMs: 15000,
+      maxDelayMs: 30000
+    }
   });
 
   MESSAGES = readJson(MESSAGES_PATH, {
     welcomeCaption:
-      "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.",
-    welcomeInfo:
-      "Informasi kontak kami:\n\n🌐 Website: {website}\n📱 Owner: {ownerNumber}\n👤 Nama Owner: {ownerName}\n\nKlik tombol *Hubungi Sekarang* di bawah untuk terhubung langsung.",
+      "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.\n\nInformasi kontak kami:\n🌐 Website: {website}\n📱 Owner: {ownerNumber}\n👤 Nama Owner: {ownerName}",
+    buttonBubbleText:
+      "Klik tombol *Hubungi Sekarang* di bawah untuk terhubung langsung dengan admin kami.",
     noWelcomeImage: "Gambar welcome tidak ditemukan.",
     welcomeFollowup:
       "Silakan hubungi admin melalui link berikut:\n{waLink}",
@@ -448,63 +461,64 @@ async function safeSendAdminButtons(sock, jid, text, title = "MENU") {
 async function sendWelcome(sock, jid, pushName = "kak") {
   const welcomeImage = SETTINGS.paths?.welcomeImage || "./media/welcome.jpg";
 
-  const caption = applyTemplate(MESSAGES.welcomeCaption, {
+  const bubbleOneCaption = applyTemplate(MESSAGES.welcomeCaption, {
     name: pushName,
-    brandName: SETTINGS.brand?.name || "Brand"
-  });
-
-  const infoText = applyTemplate(MESSAGES.welcomeInfo, {
+    brandName: SETTINGS.brand?.name || "Brand",
     website: SETTINGS.brand?.website || "-",
     ownerNumber: SETTINGS.owner?.number || "-",
     ownerName: SETTINGS.owner?.name || "Owner"
   });
 
-  // Bubble 1 = foto + caption welcome
+  const bubbleTwoText = applyTemplate(MESSAGES.buttonBubbleText, {
+    brandName: SETTINGS.brand?.name || "Brand",
+    website: SETTINGS.brand?.website || "-",
+    ownerNumber: SETTINGS.owner?.number || "-",
+    ownerName: SETTINGS.owner?.name || "Owner"
+  });
+
+  // BUBBLE 1 = FOTO + SEMUA INFO
   if (fs.existsSync(welcomeImage)) {
     try {
       await sock.sendMessage(jid, {
         image: fs.readFileSync(welcomeImage),
-        caption
+        caption: bubbleOneCaption
       });
     } catch (err) {
       console.log("Gagal kirim foto welcome:", err?.message || err);
-      await sock.sendMessage(jid, { text: caption });
+      await sock.sendMessage(jid, { text: bubbleOneCaption });
     }
   } else {
-    await sock.sendMessage(jid, { text: caption });
+    await sock.sendMessage(jid, { text: bubbleOneCaption });
   }
 
-  // Bubble 2 = info + tombol reply
+  // sedikit jeda supaya jelas terpisah
+  await delay(700);
+
+  // BUBBLE 2 = BUTTON REPLY
   try {
-    await sock.sendMessage(jid, {
-      text: infoText,
-      footer: SETTINGS.brand?.name || "Brand",
+    await sendButtons(sock, jid, {
+      title: SETTINGS.brand?.name || "Brand",
+      text: bubbleTwoText,
+      footer: SETTINGS.brand?.website || "",
       buttons: [
         {
-          buttonId: WELCOME_CONTACT_BUTTON_ID,
-          buttonText: { displayText: "Hubungi Sekarang" },
-          type: 1
+          id: WELCOME_CONTACT_BUTTON_ID,
+          text: "Hubungi Sekarang"
         }
-      ],
-      headerType: 1
+      ]
     });
   } catch (err) {
-    console.log("Gagal kirim tombol welcome:", err?.message || err);
-
-    // fallback kalau button gagal
+    console.log("Gagal kirim button reply welcome:", err?.message || err);
     await sock.sendMessage(jid, {
-      text: `${infoText}\n\nKetik *Hubungi Sekarang* untuk lanjut.`
+      text: `${bubbleTwoText}\n\nKetik *Hubungi Sekarang*`
     });
   }
 }
 
 async function sendOwnerLink(sock, jid) {
   const waLink = ownerWaLink();
-  const ownerName = SETTINGS.owner?.name || "Owner";
-
-  await sock.sendMessage(jid, {
-    text: `Silakan hubungi *${ownerName}* melalui link berikut:\n${waLink}`
-  });
+  const text = applyTemplate(MESSAGES.welcomeFollowup, { waLink });
+  await sock.sendMessage(jid, { text });
 }
 
 async function broadcastText(sock, targets, text) {

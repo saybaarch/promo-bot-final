@@ -10,7 +10,7 @@
   "addWlFormat": "Format:\\n{prefix}addwl 628xxxx, 628xxxx",
   "delWlFormat": "Format:\\n{prefix}delwl 628xxxx, 628xxxx",
   "bcFormat": "Format:\\n{prefix}{command} isi pesan promosi kamu",
-  "welcomeCaption": "Halo kak {name} 👋\n\nTerima kasih sudah menghubungi *{brandName}*.\n\nKami siap membantu kebutuhan promosi dan layanan digital Anda.\n\nSilakan klik tombol di bawah untuk langsung chat owner.\n\nWebsite:\n{website}",
+  "welcomeCaption": "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.\n\nKlik tombol *Pelajari selengkapnya* di bawah untuk terhubung langsung dengan admin kami."
   "stats": "*STATISTIK BOT*\n\nTotal pesan masuk: {totalMessages}\nTotal command: {totalCommands}\nTotal user tersimpan: {totalKnownUsers}\nTotal whitelist: {totalWhitelist}\nTotal admin nomor: {totalAdminNumbers}\nTotal admin LID: {totalAdminLids}\nTotal auto reply terkirim: {totalAutoReplies}\nTotal broadcast berhasil: {totalBroadcastSuccess}\nTotal broadcast gagal: {totalBroadcastFailed}",
   "startBroadcast": "Broadcast dimulai...\nMode: {mode}\nTarget: {total}",
   "endBroadcast": "*BROADCAST SELESAI*\n\nMode: {mode}\nTotal target: {total}\nBerhasil: {success}\nGagal: {failed}"

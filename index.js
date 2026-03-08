@@ -1,7 +1,10 @@
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  generateForwardMessageContent,
+  generateWAMessageFromContent,
+  proto
 } from "@whiskeysockets/baileys";
 import helperPkg from "baileys_helper";
 import qrcode from "qrcode-terminal";
@@ -99,8 +102,10 @@ function loadConfig() {
     },
     commandCooldownMs: 5000,
     broadcast: {
-      minDelayMs: 15000,
-      maxDelayMs: 30000
+      minDelayMs: 7000,
+      maxDelayMs: 18000,
+      typingSimulationMinMs: 1200,
+      typingSimulationMaxMs: 3500
     }
   });
 
@@ -113,7 +118,7 @@ function loadConfig() {
     welcomeFollowup:
       "Silakan hubungi admin melalui link berikut:\n{waLink}",
     menu:
-      "*MENU ADMIN*\n\n{prefix}stats\n{prefix}listwl\n{prefix}listadmin\n{prefix}addadmin\n{prefix}deladmin\n{prefix}addwl\n{prefix}delwl\n{prefix}bcwl\n{prefix}bcall\n{prefix}reload",
+      "*MENU ADMIN*\n\n{prefix}stats\n{prefix}listwl\n{prefix}listadmin\n{prefix}addadmin\n{prefix}deladmin\n{prefix}addwl\n{prefix}delwl\n{prefix}bcwl\n{prefix}bcall\n{prefix}reload\n{prefix}testwelcome",
     stats:
       "*STATISTIK BOT*\n\nTotal pesan: {totalMessages}\nTotal command: {totalCommands}\nUser tersimpan: {totalKnownUsers}\nTotal whitelist: {totalWhitelist}\nAdmin number: {totalAdminNumbers}\nAdmin lid: {totalAdminLids}\nAuto reply: {totalAutoReplies}\nBroadcast sukses: {totalBroadcastSuccess}\nBroadcast gagal: {totalBroadcastFailed}",
     noAdmin: "Kamu tidak punya akses admin.",
@@ -122,9 +127,13 @@ function loadConfig() {
     delAdminFormat: "Format: {prefix}deladmin 628xxxx atau 123456789012345@lid",
     addWlFormat: "Format: {prefix}addwl 628xxxx,628xxxx",
     delWlFormat: "Format: {prefix}delwl 628xxxx,628xxxx",
-    bcFormat: "Format: {prefix}{command} isi pesan",
+    bcFormat:
+      "Format broadcast:\n\n1. Reply pesan yang ingin dibroadcast\n2. Kirim *{prefix}{command}*\n\nContoh:\nReply foto / video / text lalu kirim *{prefix}{command}*",
+    bcNoReply:
+      "Kamu harus reply pesan yang ingin dibroadcast.\n\nContoh:\nReply pesan target lalu kirim command broadcast.",
     startBroadcast: "Broadcast dimulai.\nMode: {mode}\nTarget: {total}",
-    endBroadcast: "Broadcast selesai.\nMode: {mode}\nTotal: {total}\nSukses: {success}\nGagal: {failed}",
+    endBroadcast:
+      "Broadcast selesai.\nMode: {mode}\nTotal: {total}\nSukses: {success}\nGagal: {failed}",
     emptyTarget: "Target broadcast kosong.",
     unknownCommand: "Command tidak dikenal. Ketik {prefix}menu"
   });
@@ -228,11 +237,19 @@ function loadDatabases() {
   adminLids.clear();
 
   for (const jid of users) {
-    if (jid) knownUsers.add(String(jid).trim());
+    const clean = normalizeJid(jid);
+    if (!clean) continue;
+    if (clean.endsWith("@s.whatsapp.net") || clean.endsWith("@lid")) {
+      knownUsers.add(clean);
+    }
   }
 
   for (const jid of whitelist) {
-    if (jid) whitelistUsers.add(String(jid).trim());
+    const clean = normalizeJid(jid);
+    if (!clean) continue;
+    if (clean.endsWith("@s.whatsapp.net") || clean.endsWith("@lid")) {
+      whitelistUsers.add(clean);
+    }
   }
 
   for (const admin of admins) {
@@ -286,12 +303,12 @@ function isAdmin(senderJid = "") {
 }
 
 function rememberUser(senderJid = "") {
-  const clean = String(senderJid || "").trim();
+  const clean = normalizeJid(senderJid);
 
   if (!clean) return;
-  if (!clean.endsWith("@s.whatsapp.net") && !clean.endsWith("@lid")) return;
   if (clean.endsWith("@g.us")) return;
   if (clean.endsWith("@broadcast")) return;
+  if (!clean.endsWith("@s.whatsapp.net") && !clean.endsWith("@lid")) return;
 
   if (!knownUsers.has(clean)) {
     knownUsers.add(clean);
@@ -476,7 +493,6 @@ async function sendWelcome(sock, jid, pushName = "kak") {
     ownerName: SETTINGS.owner?.name || "Owner"
   });
 
-  // BUBBLE 1 = FOTO + SEMUA INFO
   if (fs.existsSync(welcomeImage)) {
     try {
       await sock.sendMessage(jid, {
@@ -491,10 +507,8 @@ async function sendWelcome(sock, jid, pushName = "kak") {
     await sock.sendMessage(jid, { text: bubbleOneCaption });
   }
 
-  // sedikit jeda supaya jelas terpisah
   await delay(700);
 
-  // BUBBLE 2 = BUTTON REPLY
   try {
     await sendButtons(sock, jid, {
       title: SETTINGS.brand?.name || "Brand",
@@ -508,7 +522,7 @@ async function sendWelcome(sock, jid, pushName = "kak") {
       ]
     });
   } catch (err) {
-    console.log("Gagal kirim button reply welcome:", err?.message || err);
+    console.log("Gagal kirim button welcome:", err?.message || err);
     await sock.sendMessage(jid, {
       text: `${bubbleTwoText}\n\nKetik *Hubungi Sekarang*`
     });
@@ -521,7 +535,96 @@ async function sendOwnerLink(sock, jid) {
   await sock.sendMessage(jid, { text });
 }
 
-async function broadcastText(sock, targets, text) {
+function getQuotedContextInfo(msg) {
+  return (
+    msg?.message?.extendedTextMessage?.contextInfo ||
+    msg?.message?.imageMessage?.contextInfo ||
+    msg?.message?.videoMessage?.contextInfo ||
+    msg?.message?.documentMessage?.contextInfo ||
+    msg?.message?.buttonsResponseMessage?.contextInfo ||
+    msg?.message?.templateButtonReplyMessage?.contextInfo ||
+    msg?.message?.conversation?.contextInfo ||
+    null
+  );
+}
+
+function getQuotedMessageObject(msg) {
+  return getQuotedContextInfo(msg)?.quotedMessage || null;
+}
+
+function getQuotedParticipant(msg) {
+  return getQuotedContextInfo(msg)?.participant || msg?.key?.remoteJid || "";
+}
+
+function hasQuotedMessage(msg) {
+  return !!getQuotedMessageObject(msg);
+}
+
+async function simulateHumanLikeDelay(sock, jid) {
+  try {
+    await sock.presenceSubscribe(jid);
+  } catch {}
+
+  try {
+    await sock.sendPresenceUpdate("composing", jid);
+  } catch {}
+
+  await delay(
+    randomDelay(
+      Number(SETTINGS.broadcast?.typingSimulationMinMs || 1200),
+      Number(SETTINGS.broadcast?.typingSimulationMaxMs || 3500)
+    )
+  );
+
+  try {
+    await sock.sendPresenceUpdate("paused", jid);
+  } catch {}
+}
+
+async function forwardQuotedMessage(sock, targetJid, msg) {
+  const quotedMessage = getQuotedMessageObject(msg);
+  if (!quotedMessage) {
+    throw new Error("Pesan reply tidak ditemukan");
+  }
+
+  const participant = getQuotedParticipant(msg);
+
+  const forwardContent = generateForwardMessageContent(
+    proto.Message.fromObject(quotedMessage),
+    false
+  );
+
+  const waMessage = generateWAMessageFromContent(
+    targetJid,
+    forwardContent,
+    {
+      userJid: sock.user?.id,
+      quoted: undefined
+    }
+  );
+
+  if (!waMessage.message) {
+    throw new Error("Gagal generate forward message");
+  }
+
+  const contentType = Object.keys(waMessage.message)[0];
+  if (!contentType) {
+    throw new Error("Tipe pesan forward tidak ditemukan");
+  }
+
+  if (waMessage.message[contentType]?.contextInfo) {
+    waMessage.message[contentType].contextInfo = {
+      ...(waMessage.message[contentType].contextInfo || {}),
+      participant
+    };
+  }
+
+  await sock.relayMessage(targetJid, waMessage.message, {
+    messageId: waMessage.key.id
+  });
+}
+
+async function broadcastForward(sock, targets, sourceMsg) {
   let success = 0;
   let failed = 0;
 
@@ -529,7 +632,9 @@ async function broadcastText(sock, targets, text) {
     const targetJid = targets[i];
 
     try {
-      await sock.sendMessage(targetJid, { text });
+      await simulateHumanLikeDelay(sock, targetJid);
+      await forwardQuotedMessage(sock, targetJid, sourceMsg);
+
       success++;
       stats.totalBroadcastSuccess++;
       saveStats();
@@ -537,14 +642,14 @@ async function broadcastText(sock, targets, text) {
       failed++;
       stats.totalBroadcastFailed++;
       saveStats();
-      console.log("Broadcast gagal:", targetJid, err?.message || err);
+      console.log("Broadcast forward gagal:", targetJid, err?.message || err);
     }
 
     if (i < targets.length - 1) {
       await delay(
         randomDelay(
-          Number(SETTINGS.broadcast?.minDelayMs || 15000),
-          Number(SETTINGS.broadcast?.maxDelayMs || 30000)
+          Number(SETTINGS.broadcast?.minDelayMs || 7000),
+          Number(SETTINGS.broadcast?.maxDelayMs || 18000)
         )
       );
     }
@@ -812,9 +917,9 @@ ${
       }
 
       if (command === "bcwl" || command === "bcall") {
-        if (!text) {
+        if (!hasQuotedMessage(msg)) {
           await sock.sendMessage(jid, {
-            text: applyTemplate(MESSAGES.bcFormat, {
+            text: applyTemplate(MESSAGES.bcNoReply, {
               prefix: SETTINGS.prefix || "!",
               command
             })
@@ -823,6 +928,7 @@ ${
         }
 
         const targets = command === "bcwl" ? getWhitelistTargets() : getAllTargets();
+
         if (!targets.length) {
           await sock.sendMessage(jid, {
             text: MESSAGES.emptyTarget || "Target broadcast kosong."
@@ -837,7 +943,7 @@ ${
           })
         });
 
-        const result = await broadcastText(sock, targets, text);
+        const result = await broadcastForward(sock, targets, msg);
 
         await sock.sendMessage(jid, {
           text: applyTemplate(MESSAGES.endBroadcast, {

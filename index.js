@@ -422,6 +422,8 @@ async function safeSendAdminButtons(sock, jid, text, title = "MENU") {
 
 async function sendWelcome(sock, jid, pushName = "kak") {
   const welcomeImage = SETTINGS.paths?.welcomeImage || "./media/welcome.jpg";
+  const targetUrl = SETTINGS.brand?.website || ownerWaLink();
+
   const caption = applyTemplate(MESSAGES.welcomeCaption, {
     name: pushName,
     brandName: SETTINGS.brand?.name || "Brand",
@@ -431,35 +433,31 @@ async function sendWelcome(sock, jid, pushName = "kak") {
 
   if (!fs.existsSync(welcomeImage)) {
     await sock.sendMessage(jid, {
-      text: `${MESSAGES.noWelcomeImage}\nLokasi:\n${welcomeImage}\n\nChat owner:\n${ownerWaLink()}`
+      text: `${MESSAGES.noWelcomeImage}\nLokasi:\n${welcomeImage}\n\nPelajari selengkapnya:\n${targetUrl}`
     });
     return;
   }
 
   try {
-    await sock.sendMessage(jid, {
-      image: fs.readFileSync(welcomeImage),
-      caption
-    });
-
     await sendButtons(sock, jid, {
-      title: "CHAT OWNER",
-      text: "Klik tombol di bawah untuk langsung chat owner.",
+      image: fs.readFileSync(welcomeImage),
+      title: "",
+      text: caption,
       footer: SETTINGS.brand?.name || "Brand",
       buttons: [
         {
-          id: ownerWaLink(),
-          text: "Chat Owner",
+          id: targetUrl,
+          text: "Pelajari selengkapnya",
           type: "cta_url"
         }
       ]
     });
   } catch (err) {
-    console.log("Welcome direct-link gagal, fallback:", err?.message || err);
+    console.log("Welcome error:", err?.message || err);
 
     await sock.sendMessage(jid, {
       image: fs.readFileSync(welcomeImage),
-      caption: `${caption}\n\nChat owner:\n${ownerWaLink()}`
+      caption: `${caption}\n\nPelajari selengkapnya:\n${targetUrl}`
     });
   }
 }

@@ -26,6 +26,8 @@ const STATS_DB = path.join(DATA_DIR, "stats.json");
 const AUTO_REPLY_LOG_DB = path.join(DATA_DIR, "autoReplyLog.json");
 const SESSION_DIR = path.join(BASE_DIR, "session");
 
+const WELCOME_CONTACT_BUTTON_ID = "welcome_contact_owner";
+
 let SETTINGS = {};
 let MESSAGES = {};
 let BUTTONS = {};
@@ -91,8 +93,10 @@ function loadConfig() {
 
   MESSAGES = readJson(MESSAGES_PATH, {
     welcomeCaption:
-      "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.\n\nKlik tombol *Pelajari selengkapnya* di bawah untuk terhubung langsung dengan admin kami.",
+      "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.\n\nKlik tombol *Hubungi Sekarang* di bawah untuk terhubung langsung dengan admin kami.",
     noWelcomeImage: "Gambar welcome tidak ditemukan.",
+    welcomeFollowup:
+      "Silakan hubungi admin melalui link berikut:\n{waLink}",
     menu:
       "*MENU ADMIN*\n\n{prefix}stats\n{prefix}listwl\n{prefix}listadmin\n{prefix}addadmin\n{prefix}deladmin\n{prefix}addwl\n{prefix}delwl\n{prefix}bcwl\n{prefix}bcall\n{prefix}reload",
     stats:
@@ -441,7 +445,6 @@ async function safeSendAdminButtons(sock, jid, text, title = "MENU") {
 
 async function sendWelcome(sock, jid, pushName = "kak") {
   const welcomeImage = SETTINGS.paths?.welcomeImage || "./media/welcome.jpg";
-  const waLink = ownerWaLink();
 
   const caption = applyTemplate(MESSAGES.welcomeCaption, {
     name: pushName,
@@ -451,48 +454,50 @@ async function sendWelcome(sock, jid, pushName = "kak") {
   });
 
   if (!fs.existsSync(welcomeImage)) {
-    await sock.sendMessage(jid, {
-      text: `${caption}\n\nPelajari selengkapnya:\n${waLink}`
-    });
-    return;
-  }
-
-  const imageBuffer = fs.readFileSync(welcomeImage);
-
-  try {
-    await sock.sendMessage(jid, {
-      image: imageBuffer,
-      caption
-    });
-  } catch (err) {
-    console.log("Kirim foto welcome gagal:", err?.message || err);
-    await sock.sendMessage(jid, {
-      text: `${caption}\n\nPelajari selengkapnya:\n${waLink}`
-    });
+    try {
+      await sock.sendMessage(jid, {
+        text: `${caption}\n\nKetik atau tekan tombol *Hubungi Sekarang* untuk melanjutkan.`
+      });
+    } catch (err) {
+      console.log("Welcome text fallback gagal:", err?.message || err);
+    }
     return;
   }
 
   try {
-    await sendButtons(sock, jid, {
-      title: "",
-      text: "Klik tombol di bawah untuk langsung terhubung ke admin.",
+    await sock.sendMessage(jid, {
+      image: fs.readFileSync(welcomeImage),
+      caption,
       footer: SETTINGS.brand?.name || "Brand",
       buttons: [
         {
-          id: waLink,
-          text: "Pelajari selengkapnya",
-          type: "cta_url"
+          buttonId: WELCOME_CONTACT_BUTTON_ID,
+          buttonText: { displayText: "Hubungi Sekarang" },
+          type: 1
         }
-      ]
+      ],
+      headerType: 4
     });
-    return;
   } catch (err) {
-    console.log("Button welcome gagal, fallback link text:", err?.message || err);
-  }
+    console.log("Welcome 1 pesan button gagal:", err?.message || err);
 
-  await sock.sendMessage(jid, {
-    text: `Pelajari selengkapnya:\n${waLink}`
-  });
+    try {
+      await sock.sendMessage(jid, {
+        image: fs.readFileSync(welcomeImage),
+        caption: `${caption}\n\nBalas dengan pesan apa saja untuk lanjut hubungi admin.`
+      });
+    } catch (err2) {
+      console.log("Welcome image fallback gagal:", err2?.message || err2);
+      await sock.sendMessage(jid, { text: caption });
+    }
+  }
+}
+
+async function sendOwnerLink(sock, jid) {
+  const waLink = ownerWaLink();
+  const text = applyTemplate(MESSAGES.welcomeFollowup, { waLink });
+
+  await sock.sendMessage(jid, { text });
 }
 
 async function broadcastText(sock, targets, text) {
@@ -599,6 +604,11 @@ async function startBot() {
       saveStats();
 
       rememberUser(sender);
+
+      if (originalText === WELCOME_CONTACT_BUTTON_ID) {
+        await sendOwnerLink(sock, jid);
+        return;
+      }
 
       if (!isAdmin(sender) && canSendAutoReply(sender)) {
         await sendWelcome(sock, jid, pushName);

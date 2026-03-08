@@ -93,9 +93,12 @@ function loadConfig() {
 
   MESSAGES = readJson(MESSAGES_PATH, {
     welcomeCaption:
-      "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.\n\nKlik tombol *Hubungi Sekarang* di bawah untuk terhubung langsung dengan admin kami.",
+      "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.",
+    welcomeInfo:
+      "Informasi kontak kami:\n\n🌐 Website: {website}\n📱 Owner: {ownerNumber}\n👤 Nama Owner: {ownerName}\n\nKlik tombol *Hubungi Sekarang* di bawah untuk terhubung langsung.",
     noWelcomeImage: "Gambar welcome tidak ditemukan.",
-    welcomeFollowup: "Silakan hubungi admin melalui link berikut:\n{waLink}",
+    welcomeFollowup:
+      "Silakan hubungi admin melalui link berikut:\n{waLink}",
     menu:
       "*MENU ADMIN*\n\n{prefix}stats\n{prefix}listwl\n{prefix}listadmin\n{prefix}addadmin\n{prefix}deladmin\n{prefix}addwl\n{prefix}delwl\n{prefix}bcwl\n{prefix}bcall\n{prefix}reload",
     stats:
@@ -447,22 +450,34 @@ async function sendWelcome(sock, jid, pushName = "kak") {
 
   const caption = applyTemplate(MESSAGES.welcomeCaption, {
     name: pushName,
-    brandName: SETTINGS.brand?.name || "Brand",
-    website: SETTINGS.brand?.website || "",
+    brandName: SETTINGS.brand?.name || "Brand"
+  });
+
+  const infoText = applyTemplate(MESSAGES.welcomeInfo, {
+    website: SETTINGS.brand?.website || "-",
+    ownerNumber: SETTINGS.owner?.number || "-",
     ownerName: SETTINGS.owner?.name || "Owner"
   });
 
-  if (!fs.existsSync(welcomeImage)) {
-    await sock.sendMessage(jid, {
-      text: `${caption}\n\nKetik *Hubungi Sekarang* untuk lanjut.`
-    });
-    return;
+  // Bubble 1 = foto + caption welcome
+  if (fs.existsSync(welcomeImage)) {
+    try {
+      await sock.sendMessage(jid, {
+        image: fs.readFileSync(welcomeImage),
+        caption
+      });
+    } catch (err) {
+      console.log("Gagal kirim foto welcome:", err?.message || err);
+      await sock.sendMessage(jid, { text: caption });
+    }
+  } else {
+    await sock.sendMessage(jid, { text: caption });
   }
 
+  // Bubble 2 = info + tombol reply
   try {
     await sock.sendMessage(jid, {
-      image: fs.readFileSync(welcomeImage),
-      caption,
+      text: infoText,
       footer: SETTINGS.brand?.name || "Brand",
       buttons: [
         {
@@ -471,27 +486,25 @@ async function sendWelcome(sock, jid, pushName = "kak") {
           type: 1
         }
       ],
-      headerType: 4
+      headerType: 1
     });
   } catch (err) {
-    console.log("Welcome 1 bubble gagal:", err?.message || err);
+    console.log("Gagal kirim tombol welcome:", err?.message || err);
 
-    try {
-      await sock.sendMessage(jid, {
-        image: fs.readFileSync(welcomeImage),
-        caption
-      });
-    } catch (err2) {
-      console.log("Fallback foto welcome gagal:", err2?.message || err2);
-      await sock.sendMessage(jid, { text: caption });
-    }
+    // fallback kalau button gagal
+    await sock.sendMessage(jid, {
+      text: `${infoText}\n\nKetik *Hubungi Sekarang* untuk lanjut.`
+    });
   }
 }
 
 async function sendOwnerLink(sock, jid) {
   const waLink = ownerWaLink();
-  const text = applyTemplate(MESSAGES.welcomeFollowup, { waLink });
-  await sock.sendMessage(jid, { text });
+  const ownerName = SETTINGS.owner?.name || "Owner";
+
+  await sock.sendMessage(jid, {
+    text: `Silakan hubungi *${ownerName}* melalui link berikut:\n${waLink}`
+  });
 }
 
 async function broadcastText(sock, targets, text) {
@@ -599,7 +612,10 @@ async function startBot() {
 
       rememberUser(sender);
 
-      if (originalText === WELCOME_CONTACT_BUTTON_ID) {
+      if (
+        originalText === WELCOME_CONTACT_BUTTON_ID ||
+        lowerText === "hubungi sekarang"
+      ) {
         await sendOwnerLink(sock, jid);
         return;
       }

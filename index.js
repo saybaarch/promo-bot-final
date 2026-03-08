@@ -89,7 +89,27 @@ function loadConfig() {
     broadcast: { minDelayMs: 15000, maxDelayMs: 30000 }
   });
 
-  MESSAGES = readJson(MESSAGES_PATH, {});
+  MESSAGES = readJson(MESSAGES_PATH, {
+    welcomeCaption:
+      "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.\n\nKlik tombol *Pelajari selengkapnya* di bawah untuk terhubung langsung dengan admin kami.",
+    noWelcomeImage: "Gambar welcome tidak ditemukan.",
+    menu:
+      "*MENU ADMIN*\n\n{prefix}stats\n{prefix}listwl\n{prefix}listadmin\n{prefix}addadmin\n{prefix}deladmin\n{prefix}addwl\n{prefix}delwl\n{prefix}bcwl\n{prefix}bcall\n{prefix}reload",
+    stats:
+      "*STATISTIK BOT*\n\nTotal pesan: {totalMessages}\nTotal command: {totalCommands}\nUser tersimpan: {totalKnownUsers}\nTotal whitelist: {totalWhitelist}\nAdmin number: {totalAdminNumbers}\nAdmin lid: {totalAdminLids}\nAuto reply: {totalAutoReplies}\nBroadcast sukses: {totalBroadcastSuccess}\nBroadcast gagal: {totalBroadcastFailed}",
+    noAdmin: "Kamu tidak punya akses admin.",
+    tooFast: "Terlalu cepat.",
+    addAdminFormat: "Format: {prefix}addadmin 628xxxx atau 123456789012345@lid",
+    delAdminFormat: "Format: {prefix}deladmin 628xxxx atau 123456789012345@lid",
+    addWlFormat: "Format: {prefix}addwl 628xxxx,628xxxx",
+    delWlFormat: "Format: {prefix}delwl 628xxxx,628xxxx",
+    bcFormat: "Format: {prefix}{command} isi pesan",
+    startBroadcast: "Broadcast dimulai.\nMode: {mode}\nTarget: {total}",
+    endBroadcast: "Broadcast selesai.\nMode: {mode}\nTotal: {total}\nSukses: {success}\nGagal: {failed}",
+    emptyTarget: "Target broadcast kosong.",
+    unknownCommand: "Command tidak dikenal. Ketik {prefix}menu"
+  });
+
   BUTTONS = readJson(BUTTONS_PATH, {
     adminFooter: "Menu admin",
     adminMenu: [
@@ -228,10 +248,7 @@ function saveWhitelist() {
 }
 
 function saveAdmins() {
-  const merged = [
-    ...Array.from(adminNumbers),
-    ...Array.from(adminLids)
-  ];
+  const merged = [...Array.from(adminNumbers), ...Array.from(adminLids)];
   writeJson(ADMINS_DB, merged);
 }
 
@@ -287,14 +304,14 @@ function markAutoReplySent(senderJid = "") {
 }
 
 function getAllTargets() {
-  return Array.from(knownUsers).filter(jid =>
-    jid.endsWith("@s.whatsapp.net") || jid.endsWith("@lid")
+  return Array.from(knownUsers).filter(
+    jid => jid.endsWith("@s.whatsapp.net") || jid.endsWith("@lid")
   );
 }
 
 function getWhitelistTargets() {
-  return Array.from(whitelistUsers).filter(jid =>
-    jid.endsWith("@s.whatsapp.net") || jid.endsWith("@lid")
+  return Array.from(whitelistUsers).filter(
+    jid => jid.endsWith("@s.whatsapp.net") || jid.endsWith("@lid")
   );
 }
 
@@ -440,29 +457,42 @@ async function sendWelcome(sock, jid, pushName = "kak") {
     return;
   }
 
+  const imageBuffer = fs.readFileSync(welcomeImage);
+
   try {
     await sock.sendMessage(jid, {
-      image: fs.readFileSync(welcomeImage),
-      caption,
+      image: imageBuffer,
+      caption
+    });
+  } catch (err) {
+    console.log("Kirim foto welcome gagal:", err?.message || err);
+    await sock.sendMessage(jid, {
+      text: `${caption}\n\nPelajari selengkapnya:\n${waLink}`
+    });
+    return;
+  }
+
+  try {
+    await sendButtons(sock, jid, {
+      title: "",
+      text: "Klik tombol di bawah untuk langsung terhubung ke admin.",
       footer: SETTINGS.brand?.name || "Brand",
-      templateButtons: [
+      buttons: [
         {
-          index: 1,
-          urlButton: {
-            displayText: "Pelajari selengkapnya",
-            url: waLink
-          }
+          id: waLink,
+          text: "Pelajari selengkapnya",
+          type: "cta_url"
         }
       ]
     });
+    return;
   } catch (err) {
-    console.log("Welcome template button gagal:", err?.message || err);
-
-    await sock.sendMessage(jid, {
-      image: fs.readFileSync(welcomeImage),
-      caption: `${caption}\n\nPelajari selengkapnya:\n${waLink}`
-    });
+    console.log("Button welcome gagal, fallback link text:", err?.message || err);
   }
+
+  await sock.sendMessage(jid, {
+    text: `Pelajari selengkapnya:\n${waLink}`
+  });
 }
 
 async function broadcastText(sock, targets, text) {
@@ -485,10 +515,12 @@ async function broadcastText(sock, targets, text) {
     }
 
     if (i < targets.length - 1) {
-      await delay(randomDelay(
-        Number(SETTINGS.broadcast?.minDelayMs || 15000),
-        Number(SETTINGS.broadcast?.maxDelayMs || 30000)
-      ));
+      await delay(
+        randomDelay(
+          Number(SETTINGS.broadcast?.minDelayMs || 15000),
+          Number(SETTINGS.broadcast?.maxDelayMs || 30000)
+        )
+      );
     }
   }
 
@@ -581,16 +613,24 @@ async function startBot() {
       saveStats();
 
       if (!isAdmin(sender)) {
-        await sock.sendMessage(jid, { text: MESSAGES.noAdmin || "Kamu tidak punya akses admin." });
+        await sock.sendMessage(jid, {
+          text: MESSAGES.noAdmin || "Kamu tidak punya akses admin."
+        });
         return;
       }
 
       if (isOnCommandCooldown(sender)) {
-        await sock.sendMessage(jid, { text: MESSAGES.tooFast || "Terlalu cepat." });
+        await sock.sendMessage(jid, {
+          text: MESSAGES.tooFast || "Terlalu cepat."
+        });
         return;
       }
 
-      const args = originalText.slice((SETTINGS.prefix || "!").length).trim().split(/\s+/);
+      const args = originalText
+        .slice((SETTINGS.prefix || "!").length)
+        .trim()
+        .split(/\s+/);
+
       const command = (args.shift() || "").toLowerCase();
       const text = args.join(" ").trim();
 
@@ -629,7 +669,9 @@ ${lidList.length ? lidList.join("\n") : "- kosong"}`;
       if (command === "addadmin") {
         if (!text) {
           await sock.sendMessage(jid, {
-            text: applyTemplate(MESSAGES.addAdminFormat, { prefix: SETTINGS.prefix || "!" })
+            text: applyTemplate(MESSAGES.addAdminFormat, {
+              prefix: SETTINGS.prefix || "!"
+            })
           });
           return;
         }
@@ -646,7 +688,9 @@ ${lidList.length ? lidList.join("\n") : "- kosong"}`;
       if (command === "deladmin") {
         if (!text) {
           await sock.sendMessage(jid, {
-            text: applyTemplate(MESSAGES.delAdminFormat, { prefix: SETTINGS.prefix || "!" })
+            text: applyTemplate(MESSAGES.delAdminFormat, {
+              prefix: SETTINGS.prefix || "!"
+            })
           });
           return;
         }
@@ -681,7 +725,9 @@ ${list || "- kosong"}`,
         const numbers = parseManyNumbers(text);
         if (!numbers.length) {
           await sock.sendMessage(jid, {
-            text: applyTemplate(MESSAGES.addWlFormat, { prefix: SETTINGS.prefix || "!" })
+            text: applyTemplate(MESSAGES.addWlFormat, {
+              prefix: SETTINGS.prefix || "!"
+            })
           });
           return;
         }
@@ -694,7 +740,11 @@ Input: ${numbers.length}
 Berhasil ditambah: ${result.added}
 Dilewati: ${result.skipped}
 
-${result.addedList.length ? `Nomor masuk:\n- ${result.addedList.join("\n- ")}` : "Tidak ada nomor baru."}`
+${
+  result.addedList.length
+    ? `Nomor masuk:\n- ${result.addedList.join("\n- ")}`
+    : "Tidak ada nomor baru."
+}`
         });
         return;
       }
@@ -703,7 +753,9 @@ ${result.addedList.length ? `Nomor masuk:\n- ${result.addedList.join("\n- ")}` :
         const numbers = parseManyNumbers(text);
         if (!numbers.length) {
           await sock.sendMessage(jid, {
-            text: applyTemplate(MESSAGES.delWlFormat, { prefix: SETTINGS.prefix || "!" })
+            text: applyTemplate(MESSAGES.delWlFormat, {
+              prefix: SETTINGS.prefix || "!"
+            })
           });
           return;
         }
@@ -716,7 +768,11 @@ Input: ${numbers.length}
 Berhasil dihapus: ${result.removed}
 Dilewati: ${result.skipped}
 
-${result.removedList.length ? `Nomor terhapus:\n- ${result.removedList.join("\n- ")}` : "Tidak ada nomor yang dihapus."}`
+${
+  result.removedList.length
+    ? `Nomor terhapus:\n- ${result.removedList.join("\n- ")}`
+    : "Tidak ada nomor yang dihapus."
+}`
         });
         return;
       }
@@ -734,7 +790,9 @@ ${result.removedList.length ? `Nomor terhapus:\n- ${result.removedList.join("\n-
 
         const targets = command === "bcwl" ? getWhitelistTargets() : getAllTargets();
         if (!targets.length) {
-          await sock.sendMessage(jid, { text: MESSAGES.emptyTarget || "Target broadcast kosong." });
+          await sock.sendMessage(jid, {
+            text: MESSAGES.emptyTarget || "Target broadcast kosong."
+          });
           return;
         }
 
@@ -764,7 +822,9 @@ ${result.removedList.length ? `Nomor terhapus:\n- ${result.removedList.join("\n-
       }
 
       await sock.sendMessage(jid, {
-        text: applyTemplate(MESSAGES.unknownCommand, { prefix: SETTINGS.prefix || "!" })
+        text: applyTemplate(MESSAGES.unknownCommand, {
+          prefix: SETTINGS.prefix || "!"
+        })
       });
     } catch (err) {
       console.error("ERROR BALAS PESAN:", err);

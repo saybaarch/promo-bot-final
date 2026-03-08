@@ -16,7 +16,9 @@
   },
   "commandCooldownMs": 5000,
   "broadcast": {
-    "minDelayMs": 15000,
-    "maxDelayMs": 30000
+    "minDelayMs": 7000,
+    "maxDelayMs": 18000,
+    "typingSimulationMinMs": 1200,
+    "typingSimulationMaxMs": 3500
   }
 }

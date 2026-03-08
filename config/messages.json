@@ -1,17 +1,20 @@
 {
-  "unknownCommand": "Command tidak dikenal. Ketik {prefix}menu",
+  "welcomeCaption": "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.\n\nInformasi kontak kami:\n🌐 Website: {website}\n📱 Owner: {ownerNumber}\n👤 Nama Owner: {ownerName}",
+  "buttonBubbleText": "Klik tombol *Hubungi Sekarang* di bawah untuk terhubung langsung dengan admin kami.",
+  "noWelcomeImage": "Gambar welcome tidak ditemukan.",
+  "welcomeFollowup": "Silakan hubungi admin melalui link berikut:\n{waLink}",
+  "menu": "*MENU ADMIN*\n\n{prefix}stats\n{prefix}listwl\n{prefix}listadmin\n{prefix}addadmin\n{prefix}deladmin\n{prefix}addwl\n{prefix}delwl\n{prefix}bcwl\n{prefix}bcall\n{prefix}reload\n{prefix}testwelcome",
+  "stats": "*STATISTIK BOT*\n\nTotal pesan: {totalMessages}\nTotal command: {totalCommands}\nUser tersimpan: {totalKnownUsers}\nTotal whitelist: {totalWhitelist}\nAdmin number: {totalAdminNumbers}\nAdmin lid: {totalAdminLids}\nAuto reply: {totalAutoReplies}\nBroadcast sukses: {totalBroadcastSuccess}\nBroadcast gagal: {totalBroadcastFailed}",
   "noAdmin": "Kamu tidak punya akses admin.",
-  "tooFast": "Terlalu cepat. Tunggu beberapa detik lalu coba lagi.",
+  "tooFast": "Terlalu cepat.",
+  "addAdminFormat": "Format: {prefix}addadmin 628xxxx atau 123456789012345@lid",
+  "delAdminFormat": "Format: {prefix}deladmin 628xxxx atau 123456789012345@lid",
+  "addWlFormat": "Format: {prefix}addwl 628xxxx,628xxxx",
+  "delWlFormat": "Format: {prefix}delwl 628xxxx,628xxxx",
+  "bcFormat": "Format broadcast:\n\n1. Reply pesan yang ingin dibroadcast\n2. Kirim *{prefix}{command}*\n\nContoh:\nReply foto / video / text lalu kirim *{prefix}{command}*",
+  "bcNoReply": "Kamu harus reply pesan yang ingin dibroadcast.\n\nContoh:\nReply pesan target lalu kirim command broadcast.",
+  "startBroadcast": "Broadcast dimulai.\nMode: {mode}\nTarget: {total}",
+  "endBroadcast": "Broadcast selesai.\nMode: {mode}\nTotal: {total}\nSukses: {success}\nGagal: {failed}",
   "emptyTarget": "Target broadcast kosong.",
-  "noWelcomeImage": "Foto welcome belum ditemukan di server.",
-  "menu": "*MENU ADMIN BOT PROMOSI*\n\n{prefix}menu\n{prefix}stats\n{prefix}reload\n{prefix}listadmin\n{prefix}addadmin 628xxxx atau 123456789012345@lid\n{prefix}deladmin 628xxxx atau 123456789012345@lid\n{prefix}listwl\n{prefix}addwl 628xxxx, 628xxxx\n{prefix}delwl 628xxxx, 628xxxx\n{prefix}bcwl isi pesan\n{prefix}bcall isi pesan\n{prefix}testwelcome",
-  "addAdminFormat": "Format:\\n{prefix}addadmin 628xxxx atau {prefix}addadmin 123456789012345@lid",
-  "delAdminFormat": "Format:\\n{prefix}deladmin 628xxxx atau {prefix}deladmin 123456789012345@lid",
-  "addWlFormat": "Format:\\n{prefix}addwl 628xxxx, 628xxxx",
-  "delWlFormat": "Format:\\n{prefix}delwl 628xxxx, 628xxxx",
-  "bcFormat": "Format:\\n{prefix}{command} isi pesan promosi kamu",
-  "welcomeCaption": "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.\n\nKlik tombol *Pelajari selengkapnya* di bawah untuk terhubung langsung dengan admin kami."
-  "stats": "*STATISTIK BOT*\n\nTotal pesan masuk: {totalMessages}\nTotal command: {totalCommands}\nTotal user tersimpan: {totalKnownUsers}\nTotal whitelist: {totalWhitelist}\nTotal admin nomor: {totalAdminNumbers}\nTotal admin LID: {totalAdminLids}\nTotal auto reply terkirim: {totalAutoReplies}\nTotal broadcast berhasil: {totalBroadcastSuccess}\nTotal broadcast gagal: {totalBroadcastFailed}",
-  "startBroadcast": "Broadcast dimulai...\nMode: {mode}\nTarget: {total}",
-  "endBroadcast": "*BROADCAST SELESAI*\n\nMode: {mode}\nTotal target: {total}\nBerhasil: {success}\nGagal: {failed}"
+  "unknownCommand": "Command tidak dikenal. Ketik {prefix}menu"
 }

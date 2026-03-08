@@ -171,7 +171,9 @@ function randomDelay(minMs, maxMs) {
 }
 
 function ownerWaLink() {
-  return `https://wa.me/${SETTINGS.owner.number}`;
+  const raw = String(SETTINGS.owner?.number || "").replace(/\D/g, "");
+  if (!raw) return "https://wa.me/";
+  return `https://wa.me/${raw}`;
 }
 
 function loadDatabases() {
@@ -422,7 +424,7 @@ async function safeSendAdminButtons(sock, jid, text, title = "MENU") {
 
 async function sendWelcome(sock, jid, pushName = "kak") {
   const welcomeImage = SETTINGS.paths?.welcomeImage || "./media/welcome.jpg";
-  const targetUrl = SETTINGS.brand?.website || ownerWaLink();
+  const waLink = ownerWaLink();
 
   const caption = applyTemplate(MESSAGES.welcomeCaption, {
     name: pushName,
@@ -433,31 +435,32 @@ async function sendWelcome(sock, jid, pushName = "kak") {
 
   if (!fs.existsSync(welcomeImage)) {
     await sock.sendMessage(jid, {
-      text: `${MESSAGES.noWelcomeImage}\nLokasi:\n${welcomeImage}\n\nPelajari selengkapnya:\n${targetUrl}`
+      text: `${caption}\n\nPelajari selengkapnya:\n${waLink}`
     });
     return;
   }
 
   try {
-    await sendButtons(sock, jid, {
+    await sock.sendMessage(jid, {
       image: fs.readFileSync(welcomeImage),
-      title: "",
-      text: caption,
+      caption,
       footer: SETTINGS.brand?.name || "Brand",
-      buttons: [
+      templateButtons: [
         {
-          id: targetUrl,
-          text: "Pelajari selengkapnya",
-          type: "cta_url"
+          index: 1,
+          urlButton: {
+            displayText: "Pelajari selengkapnya",
+            url: waLink
+          }
         }
       ]
     });
   } catch (err) {
-    console.log("Welcome error:", err?.message || err);
+    console.log("Welcome template button gagal:", err?.message || err);
 
     await sock.sendMessage(jid, {
       image: fs.readFileSync(welcomeImage),
-      caption: `${caption}\n\nPelajari selengkapnya:\n${targetUrl}`
+      caption: `${caption}\n\nPelajari selengkapnya:\n${waLink}`
     });
   }
 }

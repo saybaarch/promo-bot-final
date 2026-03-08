@@ -1,0 +1,8 @@
+{
+  "adminFooter": "Menu admin",
+  "adminMenu": [
+    { "id": "https://wa.me/6287803445749", "text": "https://wa.me/6287803445749" },
+    { "id": "!listwl", "text": "Whitelist" },
+    { "id": "!listadmin", "text": "Admin" }
+  ]
+}

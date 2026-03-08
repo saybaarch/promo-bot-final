@@ -1,0 +1,22 @@
+{
+  "prefix": "!",
+  "brand": {
+    "name": "Sayba Arc",
+    "website": "https://sayba.web.id"
+  },
+  "owner": {
+    "name": "Sayba Arc",
+    "number": "6287721916495"
+  },
+  "paths": {
+    "welcomeImage": "./media/welcome.jpg"
+  },
+  "autoReply": {
+    "cooldownMs": 86400000
+  },
+  "commandCooldownMs": 5000,
+  "broadcast": {
+    "minDelayMs": 15000,
+    "maxDelayMs": 30000
+  }
+}

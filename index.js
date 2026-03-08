@@ -95,8 +95,7 @@ function loadConfig() {
     welcomeCaption:
       "Halo kak {name} 👋\n\nSelamat datang di *{brandName}*.\n\nKlik tombol *Hubungi Sekarang* di bawah untuk terhubung langsung dengan admin kami.",
     noWelcomeImage: "Gambar welcome tidak ditemukan.",
-    welcomeFollowup:
-      "Silakan hubungi admin melalui link berikut:\n{waLink}",
+    welcomeFollowup: "Silakan hubungi admin melalui link berikut:\n{waLink}",
     menu:
       "*MENU ADMIN*\n\n{prefix}stats\n{prefix}listwl\n{prefix}listadmin\n{prefix}addadmin\n{prefix}deladmin\n{prefix}addwl\n{prefix}delwl\n{prefix}bcwl\n{prefix}bcall\n{prefix}reload",
     stats:
@@ -454,13 +453,9 @@ async function sendWelcome(sock, jid, pushName = "kak") {
   });
 
   if (!fs.existsSync(welcomeImage)) {
-    try {
-      await sock.sendMessage(jid, {
-        text: `${caption}\n\nKetik atau tekan tombol *Hubungi Sekarang* untuk melanjutkan.`
-      });
-    } catch (err) {
-      console.log("Welcome text fallback gagal:", err?.message || err);
-    }
+    await sock.sendMessage(jid, {
+      text: `${caption}\n\nKetik *Hubungi Sekarang* untuk lanjut.`
+    });
     return;
   }
 
@@ -479,15 +474,15 @@ async function sendWelcome(sock, jid, pushName = "kak") {
       headerType: 4
     });
   } catch (err) {
-    console.log("Welcome 1 pesan button gagal:", err?.message || err);
+    console.log("Welcome 1 bubble gagal:", err?.message || err);
 
     try {
       await sock.sendMessage(jid, {
         image: fs.readFileSync(welcomeImage),
-        caption: `${caption}\n\nBalas dengan pesan apa saja untuk lanjut hubungi admin.`
+        caption
       });
     } catch (err2) {
-      console.log("Welcome image fallback gagal:", err2?.message || err2);
+      console.log("Fallback foto welcome gagal:", err2?.message || err2);
       await sock.sendMessage(jid, { text: caption });
     }
   }
@@ -496,7 +491,6 @@ async function sendWelcome(sock, jid, pushName = "kak") {
 async function sendOwnerLink(sock, jid) {
   const waLink = ownerWaLink();
   const text = applyTemplate(MESSAGES.welcomeFollowup, { waLink });
-
   await sock.sendMessage(jid, { text });
 }
 

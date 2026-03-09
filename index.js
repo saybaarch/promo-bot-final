@@ -1,10 +1,7 @@
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion,
-  generateForwardMessageContent,
-  generateWAMessageFromContent,
-  proto
+  fetchLatestBaileysVersion
 } from "@whiskeysockets/baileys";
 import helperPkg from "baileys_helper";
 import qrcode from "qrcode-terminal";
@@ -543,7 +540,6 @@ function getQuotedContextInfo(msg) {
     msg?.message?.documentMessage?.contextInfo ||
     msg?.message?.buttonsResponseMessage?.contextInfo ||
     msg?.message?.templateButtonReplyMessage?.contextInfo ||
-    msg?.message?.conversation?.contextInfo ||
     null
   );
 }
@@ -553,11 +549,33 @@ function getQuotedMessageObject(msg) {
 }
 
 function getQuotedParticipant(msg) {
-  return getQuotedContextInfo(msg)?.participant || msg?.key?.remoteJid || "";
+  return getQuotedContextInfo(msg)?.participant || "";
+}
+
+function getQuotedStanzaId(msg) {
+  return getQuotedContextInfo(msg)?.stanzaId || "";
 }
 
 function hasQuotedMessage(msg) {
   return !!getQuotedMessageObject(msg);
+}
+
+function buildQuotedMessageForForward(msg, currentJid = "") {
+  const quotedMessage = getQuotedMessageObject(msg);
+  const participant = getQuotedParticipant(msg);
+  const stanzaId = getQuotedStanzaId(msg);
+
+  if (!quotedMessage) return null;
+
+  return {
+    key: {
+      remoteJid: currentJid || msg.key.remoteJid,
+      fromMe: false,
+      id: stanzaId || `quoted_${Date.now()}`,
+      participant: participant || undefined
+    },
+    message: quotedMessage
+  };
 }
 
 async function simulateHumanLikeDelay(sock, jid) {
@@ -581,46 +599,15 @@ async function simulateHumanLikeDelay(sock, jid) {
   } catch {}
 }
 
-async function forwardQuotedMessage(sock, targetJid, msg) {
-  const quotedMessage = getQuotedMessageObject(msg);
-  if (!quotedMessage) {
-    throw new Error("Pesan reply tidak ditemukan");
+async function forwardQuotedMessage(sock, targetJid, sourceMsg) {
+  const quoted = buildQuotedMessageForForward(sourceMsg, sourceMsg.key.remoteJid);
+
+  if (!quoted || !quoted.message) {
+    throw new Error("Quoted message tidak ditemukan");
   }
 
-  const participant = getQuotedParticipant(msg);
-
-  const forwardContent = generateForwardMessageContent(
-    proto.Message.fromObject(quotedMessage),
-    false
-  );
-
-  const waMessage = generateWAMessageFromContent(
-    targetJid,
-    forwardContent,
-    {
-      userJid: sock.user?.id,
-      quoted: undefined
-    }
-  );
-
-  if (!waMessage.message) {
-    throw new Error("Gagal generate forward message");
-  }
-
-  const contentType = Object.keys(waMessage.message)[0];
-  if (!contentType) {
-    throw new Error("Tipe pesan forward tidak ditemukan");
-  }
-
-  if (waMessage.message[contentType]?.contextInfo) {
-    waMessage.message[contentType].contextInfo = {
-      ...(waMessage.message[contentType].contextInfo || {}),
-      participant
-    };
-  }
-
-  await sock.relayMessage(targetJid, waMessage.message, {
-    messageId: waMessage.key.id
+  await sock.sendMessage(targetJid, {
+    forward: quoted
   });
 }
 
@@ -642,7 +629,12 @@ async function broadcastForward(sock, targets, sourceMsg) {
       failed++;
       stats.totalBroadcastFailed++;
       saveStats();
-      console.log("Broadcast forward gagal:", targetJid, err?.message || err);
+
+      console.log("Broadcast forward gagal:", {
+        targetJid,
+        message: err?.message || String(err),
+        stack: err?.stack || "-"
+      });
     }
 
     if (i < targets.length - 1) {
@@ -917,6 +909,16 @@ ${
       }
 
       if (command === "bcwl" || command === "bcall") {
+        if (text) {
+          await sock.sendMessage(jid, {
+            text: applyTemplate(MESSAGES.bcFormat, {
+              prefix: SETTINGS.prefix || "!",
+              command
+            })
+          });
+          return;
+        }
+
         if (!hasQuotedMessage(msg)) {
           await sock.sendMessage(jid, {
             text: applyTemplate(MESSAGES.bcNoReply, {

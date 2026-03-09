@@ -1,5 +1,4 @@
 node_modules/
 session/
-data/users.json
-data/stats.json
-data/autoReplyLog.json
+.env
+npm-debug.log
